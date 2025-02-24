@@ -2,13 +2,14 @@
 extern crate alloc;
 
 use stylus_sdk::{
-    alloy_primitives::{Address, U256},
     alloy_sol_types::{sol, SolCall},
-    call::RawCall,
     contract,
+    alloy_primitives::{Address, U256},
+    call::RawCall, 
     prelude::*,
     storage::StorageAddress,
 };
+
 
 sol_storage! {
     #[entrypoint]
@@ -20,12 +21,12 @@ sol_storage! {
 }
 
 pub struct Worker {
-    worker_address: Address,
+    worker_address:Address,
     amount_paid: U256,
 }
 
 sol! {
-
+    
     function balanceOf(address account) returns (uint256);
     function transfer(address recipient, uint256 value) returns (bool);
     event Transfer(address indexed from, address indexed to, uint256 value);
@@ -69,6 +70,7 @@ impl Counter {
         // This call should use the token's transfer method.
         let success = Self::_perform_transfer(*self.token, contract::address(), amount);
         if success {
+            
             let current = self.balances.get(employer);
             self.balances.setter(employer).set(current + amount);
         }
@@ -91,12 +93,14 @@ impl Counter {
         let mut available = self.balances.get(employer);
 
         for (worker_address, amount) in workers {
+           
             if available < amount {
                 continue;
             }
-
+            
             let success = Self::_perform_transfer(*self.token, worker_address, amount);
             if success {
+              
                 available = available - amount;
                 self.balances.setter(employer).set(available);
             }
@@ -104,14 +108,17 @@ impl Counter {
         true
     }
 
+ 
     pub fn employer_balance(&self, employer: Address) -> U256 {
         self.balances.get(employer)
     }
+
 
     pub fn my_balance(&self) -> U256 {
         self.balances.get(self.vm().msg_sender())
     }
 
+   
     pub fn token_balance(&self, owner: Address) -> U256 {
         let result = RawCall::new_static().call(
             alloy_primitives::Address(*self.token.get()),
@@ -123,22 +130,9 @@ impl Counter {
             Err(_) => U256::from(0), // Returns 0 if the call fails
         }
     }
-
-    pub fn _perform_transfer(token_addr: Address, recipient: Address, amount: U256) -> bool {
-        let call_data = transferCall {
-            recipient,
-            value: amount,
-        }
-        .abi_encode();
-        let result = RawCall::new().call(token_addr, &call_data);
-        match result {
-            Ok(data) => data.first().copied() == Some(1),
-            Err(_) => false,
-        }
-    }
 }
 
-/* impl Counter {
+impl Counter {
     fn _perform_transfer(token_addr: Address, recipient: Address, amount: U256) -> bool {
         let call_data = transferCall { recipient, value: amount }.abi_encode();
         let result = RawCall::new().call(token_addr, &call_data);
@@ -148,5 +142,3 @@ impl Counter {
         }
     }
 }
-
- */
