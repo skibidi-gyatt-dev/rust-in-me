@@ -1,14 +1,18 @@
 #![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
 extern crate alloc;
 
+
 use stylus_sdk::{
     alloy_primitives::{Address, U256},
     alloy_sol_types::{sol, SolCall},
     call::RawCall,
+    call,
     contract,
     prelude::*,
     storage::StorageAddress,
 };
+
+const TRANSFER_FROM_SELECTOR: [u8; 4] = [0x23, 0xb8, 0x72, 0xdd];
 
 sol_storage! {
     #[entrypoint]
@@ -16,6 +20,19 @@ sol_storage! {
         address token;
         address admin;
         mapping(address => uint256) balances;
+    }
+}
+
+sol_interface! {
+    interface ERC20 {
+        
+        function balanceOf(address account) external view returns (uint256);
+        function transfer(address recipient, uint256 amount)
+            external
+            returns (bool);
+        function transferFrom(address sender, address recipient, uint256 amount)
+            external
+            returns (bool);
     }
 }
 
@@ -39,6 +56,9 @@ impl Counter {
             self.admin.set(self.vm().msg_sender());
         }
     }
+    pub fn set_address(&mut self, _token: Address) {
+        self.token.set(_token);
+    }
 
     /// Allows the current admin to change the admin.
     pub fn change_admin(&mut self, new_admin: Address) {
@@ -51,9 +71,7 @@ impl Counter {
     }
 
     /// Sets the token address used for deposits.
-    pub fn set_address(&mut self, _token: Address) {
-        self.token.set(_token);
-    }
+  
 
     pub fn deposit(&mut self, amount: U256) -> bool {
         let employer = self.vm().msg_sender();
@@ -75,16 +93,6 @@ impl Counter {
         success
     }
 
-    /// Pay workers from the caller's deposit balance.
-    ///
-    /// The caller (employer) must have deposited tokens previously.
-    /// For each worker in `workers` (a vector of {worker address, amount}), this function:
-    ///   1. Checks that the caller's internal balance is at least `amount`.
-    ///   2. Deducts `amount` from the caller’s balance.
-    ///   3. Transfers `amount` tokens from this contract to the worker.
-    ///
-    /// If any payment fails (or if the employer does not have enough deposited tokens),
-    /// the function will skip that worker.
     pub fn pay_workers(&mut self, workers: Vec<(Address, U256)>) -> bool {
         let employer = self.vm().msg_sender();
 
@@ -112,6 +120,15 @@ impl Counter {
         self.balances.get(self.vm().msg_sender())
     }
 
+    // # transfer test
+
+    fn transfer_usdc(&mut self, from: Address, to: Address, amount: U256) -> bool {
+        let usdc: ERC20 = ERC20::new(alloy_primitives::Address(*self.token.get()));
+
+        usdc.transfer_from(self,from, to, amount).expect("REASON")
+    }
+
+
     pub fn token_balance(&self, owner: Address) -> U256 {
         let result = RawCall::new_static().call(
             alloy_primitives::Address(*self.token.get()),
@@ -136,7 +153,39 @@ impl Counter {
             Err(_) => false,
         }
     }
+
+   /*  fn transfer_tokens(&self) {
+        let sender = self.vm().msg_sender();
+        let contract_address = contract::address();
+        //let cost = self.increment_cost.get();
+        let token_addr = self.token.get();
+
+        let mut calldata = Vec::new();
+        calldata.extend_from_slice(&TRANSFER_FROM_SELECTOR);
+        
+        let mut from_padded = [0u8; 32];
+        from_padded[12..].copy_from_slice(&sender.to_vec());
+        calldata.extend_from_slice(&from_padded);
+        
+        let mut to_padded = [0u8; 32];
+        to_padded[12..].copy_from_slice(&contract_address.to_vec());
+        calldata.extend_from_slice(&to_padded);
+        
+        //calldata.extend_from_slice(&cost.to_be_bytes());
+
+        let result = call::call(token_addr, &calldata).expect("Token call failed");
+        
+        if result.len() != 32 || result[31] != 1 {
+            panic!("Token transfer failed");
+        }
+    } */
+    
+
+
+    
 }
+
+
 
 /* impl Counter {
     fn _perform_transfer(token_addr: Address, recipient: Address, amount: U256) -> bool {
@@ -147,6 +196,5 @@ impl Counter {
             Err(_) => false,
         }
     }
-}
+} */
 
- */
