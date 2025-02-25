@@ -1,12 +1,11 @@
 #![cfg_attr(not(any(test, feature = "export-abi")), no_main)]
 extern crate alloc;
 
-
 use stylus_sdk::{
     alloy_primitives::{Address, U256},
     alloy_sol_types::{sol, SolCall},
-    call::RawCall,
     call,
+    call::RawCall,
     contract,
     prelude::*,
     storage::StorageAddress,
@@ -16,7 +15,7 @@ const TRANSFER_FROM_SELECTOR: [u8; 4] = [0x23, 0xb8, 0x72, 0xdd];
 
 sol_storage! {
     #[entrypoint]
-    pub struct Counter {
+    pub struct EmployerPool {
         address token;
         address admin;
         mapping(address => uint256) balances;
@@ -25,14 +24,13 @@ sol_storage! {
 
 sol_interface! {
     interface ERC20 {
-        
-        function balanceOf(address account) external view returns (uint256);
-        function transfer(address recipient, uint256 amount)
-            external
-            returns (bool);
-        function transferFrom(address sender, address recipient, uint256 amount)
-            external
-            returns (bool);
+    function balanceOf(address account) external view returns (uint256);
+    function transfer(address recipient, uint256 amount)
+        external
+        returns (bool);
+    function transferFrom(address sender, address recipient, uint256 amount)
+        external
+        returns (bool);
     }
 }
 
@@ -49,7 +47,7 @@ sol! {
 }
 
 #[public]
-impl Counter {
+impl EmployerPool {
     /// (Constructor) Initializes the admin to the caller if not already set.
     pub fn initialize_admin(&mut self) {
         if Address::from(*self.admin.get()) == Address::default() {
@@ -71,25 +69,20 @@ impl Counter {
     }
 
     /// Sets the token address used for deposits.
-  
 
     pub fn deposit(&mut self, amount: U256) -> bool {
         let employer = self.vm().msg_sender();
+        let current = self.balances.get(employer);
 
         // Check the external token balance of the employer.
         let ext_balance = self.token_balance(employer);
         if ext_balance < amount {
-            // Not enough tokens available externally.
             return false;
         }
 
-        // Attempt to transfer tokens from the employer to this contract.
-        // This call should use the token's transfer method.
-        let success = Self::_perform_transfer(*self.token, contract::address(), amount);
-        if success {
-            let current = self.balances.get(employer);
-            self.balances.setter(employer).set(current + amount);
-        }
+        let success = Self::transfer_from_token(self, employer, contract::address(), amount);
+        
+        self.balances.setter(employer).set(current + amount);
         success
     }
 
@@ -104,10 +97,9 @@ impl Counter {
             }
 
             let success = Self::_perform_transfer(*self.token, worker_address, amount);
-            if success {
-                available = available - amount;
-                self.balances.setter(employer).set(available);
-            }
+            available = available - amount;
+            self.balances.setter(employer).set(available);
+            
         }
         true
     }
@@ -121,13 +113,6 @@ impl Counter {
     }
 
     // # transfer test
-
-    fn transfer_usdc(&mut self, from: Address, to: Address, amount: U256) -> bool {
-        let usdc: ERC20 = ERC20::new(alloy_primitives::Address(*self.token.get()));
-
-        usdc.transfer_from(self,from, to, amount).expect("REASON")
-    }
-
 
     pub fn token_balance(&self, owner: Address) -> U256 {
         let result = RawCall::new_static().call(
@@ -153,48 +138,27 @@ impl Counter {
             Err(_) => false,
         }
     }
-
-   /*  fn transfer_tokens(&self) {
-        let sender = self.vm().msg_sender();
-        let contract_address = contract::address();
-        //let cost = self.increment_cost.get();
-        let token_addr = self.token.get();
-
-        let mut calldata = Vec::new();
-        calldata.extend_from_slice(&TRANSFER_FROM_SELECTOR);
-        
-        let mut from_padded = [0u8; 32];
-        from_padded[12..].copy_from_slice(&sender.to_vec());
-        calldata.extend_from_slice(&from_padded);
-        
-        let mut to_padded = [0u8; 32];
-        to_padded[12..].copy_from_slice(&contract_address.to_vec());
-        calldata.extend_from_slice(&to_padded);
-        
-        //calldata.extend_from_slice(&cost.to_be_bytes());
-
-        let result = call::call(token_addr, &calldata).expect("Token call failed");
-        
-        if result.len() != 32 || result[31] != 1 {
-            panic!("Token transfer failed");
-        }
-    } */
-    
-
-
-    
 }
 
+impl EmployerPool {
 
+    //internal functions
 
-/* impl Counter {
-    fn _perform_transfer(token_addr: Address, recipient: Address, amount: U256) -> bool {
-        let call_data = transferCall { recipient, value: amount }.abi_encode();
-        let result = RawCall::new().call(token_addr, &call_data);
-        match result {
-            Ok(data) => data.first().copied() == Some(1),
-            Err(_) => false,
-        }
+    fn transfer_from_token(&mut self, from: Address, to: Address, amount: U256) -> bool {
+        let token: ERC20 = ERC20::new(alloy_primitives::Address(*self.token.get()));
+
+        token
+            .transfer_from(self, from, to, amount)
+            .expect("approve token first")
     }
-} */
-
+    fn transfer_token(&mut self, to: Address, amount: U256) -> bool {
+        let token: ERC20 = ERC20::new(alloy_primitives::Address(*self.token.get()));
+        token
+            .transfer(self, to, amount)
+            .expect("approve token first")
+    } //contract balance
+    fn balance(&self) -> U256{
+        let token: ERC20 = ERC20::new(alloy_primitives::Address(*self.token.get()));
+        token.balance()
+    }
+}
