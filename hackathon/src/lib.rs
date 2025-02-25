@@ -54,6 +54,11 @@ impl EmployerPool {
         }
     }
     pub fn set_address(&mut self, _token: Address) {
+        assert_eq!(
+            Address::from(*self.admin.get()),
+            self.vm().msg_sender(),
+            "Only admin can change admin"
+        );
         self.token.set(_token);
     }
 
@@ -108,7 +113,6 @@ impl EmployerPool {
         self.balances.get(self.vm().msg_sender())
     }
 
-
     pub fn token_balance(&self, owner: Address) -> U256 {
         let result = RawCall::new_static().call(
             alloy_primitives::Address(*self.token.get()),
@@ -119,6 +123,18 @@ impl EmployerPool {
             Ok(data) => U256::from_be_bytes::<32>(data.try_into().unwrap_or([0u8; 32])),
             Err(_) => U256::from(0), // Returns 0 if the call fails
         }
+    }
+
+    pub fn emergency_withdraw(&mut self, _amount:U256) {
+        //in case of emergency... most esp lost wallet
+        let admin : Address = self.admin.get();
+        assert_eq!(
+            Address::from(*self.admin.get()),
+            self.vm().msg_sender(),
+            "Only can call this booga ooga restrictive function"
+        );
+
+        Self::transfer_token(self, admin, _amount);
     }
 }
 
