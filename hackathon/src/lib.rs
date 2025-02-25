@@ -11,7 +11,6 @@ use stylus_sdk::{
     storage::StorageAddress,
 };
 
-const TRANSFER_FROM_SELECTOR: [u8; 4] = [0x23, 0xb8, 0x72, 0xdd];
 
 sol_storage! {
     #[entrypoint]
@@ -88,18 +87,15 @@ impl EmployerPool {
 
     pub fn pay_workers(&mut self, workers: Vec<(Address, U256)>) -> bool {
         let employer = self.vm().msg_sender();
-
-        let mut available = self.balances.get(employer);
+        let mut bal = Self::employer_balance(&self, employer);
 
         for (worker_address, amount) in workers {
-            if available < amount {
+            if bal < amount {
                 continue;
             }
-
-            let success = Self::_perform_transfer(*self.token, worker_address, amount);
-            available = available - amount;
-            self.balances.setter(employer).set(available);
-            
+            let success = Self::transfer_token(self, worker_address, amount);
+            bal = bal - amount;
+            self.balances.setter(employer).set(bal);
         }
         true
     }
@@ -112,7 +108,6 @@ impl EmployerPool {
         self.balances.get(self.vm().msg_sender())
     }
 
-    // # transfer test
 
     pub fn token_balance(&self, owner: Address) -> U256 {
         let result = RawCall::new_static().call(
@@ -123,19 +118,6 @@ impl EmployerPool {
         match result {
             Ok(data) => U256::from_be_bytes::<32>(data.try_into().unwrap_or([0u8; 32])),
             Err(_) => U256::from(0), // Returns 0 if the call fails
-        }
-    }
-
-    pub fn _perform_transfer(token_addr: Address, recipient: Address, amount: U256) -> bool {
-        let call_data = transferCall {
-            recipient,
-            value: amount,
-        }
-        .abi_encode();
-        let result = RawCall::new().call(token_addr, &call_data);
-        match result {
-            Ok(data) => data.first().copied() == Some(1),
-            Err(_) => false,
         }
     }
 }
