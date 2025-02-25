@@ -108,12 +108,13 @@ impl EmployerPool {
     //employer address will be passed based on the amount they have in the pool
     //admin only admin can call
     pub fn auto_pay_workers(&mut self, employer:Address ,workers: Vec<(Address, U256)>) -> bool {
+        let mut bal = Self::employer_balance(&self, employer);
+
         assert_eq!(
             Address::from(*self.admin.get()),
             employer,
             "Only admin can auto pay workers!"
         );
-        let mut bal = Self::employer_balance(&self, employer);
 
         for (worker_address, amount) in workers {
             if bal < amount {
