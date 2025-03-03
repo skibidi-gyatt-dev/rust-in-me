@@ -101,7 +101,7 @@ impl EmployerPool {
         let employer = self.vm().msg_sender();
         let mut bal = Self::employer_balance(&self, employer);
 
-        if _total < bal {
+        if _total > bal {
             return Err(EmployerPoolError::InsufficientBalance(InsufficientBalance{
                 balance: bal,
             }));
@@ -126,7 +126,7 @@ impl EmployerPool {
     pub fn auto_pay_workers(&mut self, employer:Address ,workers: Vec<(Address, U256)>, _total:U256) -> Result<bool, EmployerPoolError> {
         let mut bal = Self::employer_balance(&self, employer);
 
-        if _total < bal {
+        if _total > bal {
             return Err(EmployerPoolError::InsufficientBalance(InsufficientBalance{
                 balance: bal,
             }));
@@ -175,7 +175,7 @@ impl EmployerPool {
 
         let mut bal = Self::employer_balance(&self, employer_addres);
 
-        if _amount < bal {
+        if _amount > bal {
             return Err(EmployerPoolError::InsufficientBalance(InsufficientBalance{
                 balance: bal,
             }));
