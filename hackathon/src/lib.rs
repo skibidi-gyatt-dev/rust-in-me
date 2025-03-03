@@ -42,7 +42,13 @@ sol! {
 
     function balanceOf(address account) returns (uint256);
     function transfer(address recipient, uint256 value) returns (bool);
-    event Transfer(address indexed from, address indexed to, uint256 value);
+    error InsufficientBalance(uint256 balance);
+    //event Transfer(address indexed from, address indexed to, uint256 value);
+}
+
+#[derive(SolidityError)]
+pub enum EmployerPoolError {
+    InsufficientBalance(InsufficientBalance),
 }
 
 #[public]
@@ -53,6 +59,7 @@ impl EmployerPool {
             self.admin.set(self.vm().msg_sender());
         }
     }
+    //intialize a token for now, multi token will be added for future. mock usdc only now
     pub fn set_address(&mut self, _token: Address) {
         assert_eq!(
             Address::from(*self.admin.get()),
@@ -89,31 +96,47 @@ impl EmployerPool {
         self.balances.setter(employer).set(current + amount);
         success
     }
-
-    pub fn pay_workers(&mut self, workers: Vec<(Address, U256)>) -> bool {
+    //total pased from the fe 
+    pub fn pay_workers(&mut self, workers: Vec<(Address, U256)>, _total:U256) -> Result<bool, EmployerPoolError> {
         let employer = self.vm().msg_sender();
         let mut bal = Self::employer_balance(&self, employer);
 
-        
-        for (worker_address, amount) in workers {
-            if bal < amount {
-                continue;
-            }
-            let success = Self::transfer_token(self, worker_address, amount);
-            bal = bal - amount;
-            self.balances.setter(employer).set(bal);
+        if _total < bal {
+            return Err(EmployerPoolError::InsufficientBalance(InsufficientBalance{
+                balance: bal,
+            }));
         }
-        true
+        else{
+            for (worker_address, amount) in workers {
+                if bal < amount {
+                   continue;
+                }
+                let success = Self::transfer_token(self, worker_address, amount);
+                bal = bal - amount;
+                self.balances.setter(employer).set(bal);
+            }
+        }
+        
+        
+     Ok(true)
     }
-    //employer address will be passed based on the amount they have in the pool
+    //employer address will be passed, how much they own in the pool
     //admin only admin can call
-    pub fn auto_pay_workers(&mut self, employer:Address ,workers: Vec<(Address, U256)>) -> bool {
+    //fe checks if the total amount is enough before calling this function
+    pub fn auto_pay_workers(&mut self, employer:Address ,workers: Vec<(Address, U256)>, _total:U256) -> Result<bool, EmployerPoolError> {
+        let mut bal = Self::employer_balance(&self, employer);
+
+        if _total < bal {
+            return Err(EmployerPoolError::InsufficientBalance(InsufficientBalance{
+                balance: bal,
+            }));
+        }
+
         assert_eq!(
             Address::from(*self.admin.get()),
             employer,
             "Only admin can auto pay workers!"
         );
-        let mut bal = Self::employer_balance(&self, employer);
 
         for (worker_address, amount) in workers {
             if bal < amount {
@@ -123,7 +146,7 @@ impl EmployerPool {
             bal = bal - amount;
             self.balances.setter(employer).set(bal);
         }
-        true
+        Ok(true)
     }
 
     pub fn employer_balance(&self, employer: Address) -> U256 {
@@ -146,16 +169,29 @@ impl EmployerPool {
         }
     }
 
-    pub fn emergency_withdraw(&mut self, _amount:U256) {
+    pub fn emergency_withdraw(&mut self, employer_addres:Address ,_amount:U256) -> Result<(), EmployerPoolError> {
         //in case of emergency... most esp lost wallet
+        //money glitch found. FUCK!
+
+        let mut bal = Self::employer_balance(&self, employer_addres);
+
+        if _amount < bal {
+            return Err(EmployerPoolError::InsufficientBalance(InsufficientBalance{
+                balance: bal,
+            }));
+        }
+
         let admin : Address = self.admin.get();
         assert_eq!(
             Address::from(*self.admin.get()),
             self.vm().msg_sender(),
-            "Only can call this booga ooga restrictive function"
+            "Only admin can call this booga ooga restrictive function"
         );
 
         Self::transfer_token(self, admin, _amount);
+        bal = bal - _amount;
+        self.balances.setter(employer_addres).set(bal);
+        Ok(())
     }
 
     fn balance(&self) -> U256{
