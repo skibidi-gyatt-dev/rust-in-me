@@ -149,6 +149,22 @@ impl EmployerPool {
         Ok(true)
     }
 
+    pub fn transfer_by_employer(&mut self, _recipient:Address ,_amount : U256) -> Result<bool, EmployerPoolError> {
+        let employer = self.vm().msg_sender();
+        let mut bal = Self::employer_balance(&self, employer);
+
+        if _amount > bal {
+            return Err(EmployerPoolError::InsufficientBalance(InsufficientBalance{
+                balance: bal,
+            }));
+        } else {
+            Self::transfer_token(self, _recipient, _amount);
+            bal = bal - _amount;
+            self.balances.setter(employer).set(bal);
+        }
+        Ok(true)
+    }
+
     pub fn employer_balance(&self, employer: Address) -> U256 {
         self.balances.get(employer)
     }
