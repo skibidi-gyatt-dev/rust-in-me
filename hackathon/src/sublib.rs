@@ -16,7 +16,7 @@ use crate::erc20::{Erc20, Erc20Params, Erc20Error};
 struct StylusTokenParams;
 impl Erc20Params for StylusTokenParams {
     const NAME: &'static str = "MOCK USDC";
-    const SYMBOL: &'static str = "MUSDC";
+    const SYMBOL: &'static str = "$MUSDC";
     const DECIMALS: u8 = 6;
 }
 
